@@ -1,0 +1,2124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0a0e17" />
+  <title>MapLeak Lab — Source Map Risk Simulator</title>
+  <style>
+    :root{
+      --bg:#0a0e17;
+      --panel:rgba(255,255,255,.07);
+      --panel2:rgba(255,255,255,.045);
+      --stroke:rgba(255,255,255,.10);
+      --stroke2:rgba(255,255,255,.16);
+      --text:rgba(255,255,255,.92);
+      --muted:rgba(255,255,255,.66);
+      --muted2:rgba(255,255,255,.52);
+      --good:#39d98a;
+      --warn:#ffcc66;
+      --bad:#ff5c7a;
+      --accent:#7c5cff;
+      --accent2:#00d4ff;
+      --accent3:#ff3d9a;
+      --shadow: 0 20px 70px rgba(0,0,0,.55);
+      --shadow2: 0 10px 30px rgba(0,0,0,.45);
+      --radius: 18px;
+      --radius2: 26px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      background:
+        radial-gradient(1200px 800px at 10% 10%, rgba(124,92,255,.20), transparent 55%),
+        radial-gradient(900px 700px at 90% 10%, rgba(0,212,255,.14), transparent 60%),
+        radial-gradient(900px 700px at 60% 90%, rgba(255,61,154,.12), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.03), transparent 25%),
+        var(--bg);
+      color:var(--text);
+      overflow-x:hidden;
+    }
+
+    a{color:inherit}
+
+    .topbar{
+      position:sticky;
+      top:0;
+      z-index:50;
+      backdrop-filter: blur(12px);
+      background: linear-gradient(180deg, rgba(10,14,23,.78), rgba(10,14,23,.36));
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+
+    .topbar-inner{
+      max-width:1200px;
+      margin:0 auto;
+      padding:14px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width:220px;
+    }
+
+    .logo{
+      width:36px;height:36px;
+      border-radius:12px;
+      background:
+        radial-gradient(10px 10px at 30% 30%, rgba(255,255,255,.35), transparent 50%),
+        linear-gradient(135deg, rgba(124,92,255,1), rgba(0,212,255,1));
+      box-shadow: 0 12px 40px rgba(124,92,255,.35);
+      border:1px solid rgba(255,255,255,.20);
+    }
+
+    .brand h1{
+      font-size:15px;
+      margin:0;
+      letter-spacing:.2px;
+      font-weight:720;
+      line-height:1.1;
+    }
+
+    .brand .sub{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:2px;
+    }
+
+    .actions{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
+      border-radius:999px;
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      color:var(--muted);
+      font-size:12px;
+      user-select:none;
+    }
+
+    .btn{
+      appearance:none;
+      border:1px solid rgba(255,255,255,.16);
+      background:rgba(255,255,255,.06);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      font-size:12px;
+      cursor:pointer;
+      transition: transform .15s ease, background .15s ease, border-color .15s ease;
+      box-shadow: 0 10px 25px rgba(0,0,0,.2);
+    }
+
+    .btn:hover{transform: translateY(-1px); background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.22)}
+    .btn:active{transform: translateY(0px);}
+
+    .btn.primary{
+      background: linear-gradient(135deg, rgba(124,92,255,.95), rgba(0,212,255,.78));
+      border-color: rgba(255,255,255,.22);
+    }
+
+    .btn.danger{
+      background: linear-gradient(135deg, rgba(255,92,122,.95), rgba(255,61,154,.65));
+      border-color: rgba(255,255,255,.22);
+    }
+
+    .container{
+      max-width:1200px;
+      margin:0 auto;
+      padding:18px 16px 60px;
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap:16px;
+    }
+
+    @media (max-width: 980px){
+      .container{grid-template-columns: 1fr;}
+      .brand{min-width:auto}
+    }
+
+    .card{
+      border-radius: var(--radius2);
+      background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.035));
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: var(--shadow2);
+      overflow:hidden;
+    }
+
+    .card-header{
+      padding:16px 16px 10px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      background:
+        radial-gradient(900px 100px at 40% 0%, rgba(124,92,255,.18), transparent 60%),
+        radial-gradient(700px 120px at 75% 0%, rgba(0,212,255,.14), transparent 60%);
+    }
+
+    .card-header h2{margin:0; font-size:14px; font-weight:760; letter-spacing:.2px}
+    .card-header p{margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.35}
+
+    .card-body{padding:14px 16px 16px}
+
+    .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
+    @media (max-width: 520px){ .grid2{grid-template-columns: 1fr;} }
+
+    label{
+      display:block;
+      font-size:11px;
+      color:var(--muted);
+      margin:0 0 6px;
+      letter-spacing:.25px;
+      text-transform:uppercase;
+    }
+
+    input[type="text"], input[type="number"], textarea, select{
+      width:100%;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(10,14,23,.55);
+      color:var(--text);
+      padding:10px 12px;
+      outline:none;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+      transition: border-color .15s ease, transform .15s ease;
+    }
+
+    input[type="text"]:focus, input[type="number"]:focus, textarea:focus, select:focus{
+      border-color: rgba(0,212,255,.35);
+    }
+
+    textarea{min-height:90px; resize:vertical; font-family: var(--mono); font-size:12px; line-height:1.35}
+
+    .toggle{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      padding:10px 12px;
+      border-radius: 16px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.035);
+    }
+
+    .toggle input{width:18px;height:18px}
+    .toggle .t-title{font-size:12px; font-weight:680}
+    .toggle .t-sub{font-size:12px; color:var(--muted); margin-top:2px}
+
+    .stack{display:flex; flex-direction:column; gap:10px}
+
+    .meter{
+      padding:14px 14px 12px;
+      border-radius: 18px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.035);
+      position:relative;
+      overflow:hidden;
+    }
+
+    .meter::before{
+      content:"";
+      position:absolute;
+      inset:-40px;
+      background: radial-gradient(320px 220px at var(--mx, 40%) var(--my, 0%), rgba(124,92,255,.22), transparent 60%);
+      pointer-events:none;
+    }
+
+    .meter-top{display:flex; align-items:center; justify-content:space-between; gap:12px; position:relative}
+    .meter-top h3{margin:0; font-size:12px; letter-spacing:.25px; text-transform:uppercase; color:var(--muted)}
+
+    .score{
+      font-family: var(--mono);
+      font-size:22px;
+      font-weight:800;
+      letter-spacing:.5px;
+    }
+
+    .bar{
+      margin-top:10px;
+      height:10px;
+      border-radius:999px;
+      background:rgba(255,255,255,.08);
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.10);
+      position:relative;
+    }
+
+    .bar > div{
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg, rgba(0,212,255,1), rgba(124,92,255,1), rgba(255,61,154,1));
+      border-radius:999px;
+      transition: width .35s ease;
+      box-shadow: 0 0 20px rgba(0,212,255,.45);
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.045);
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    .pill .dot{width:8px;height:8px;border-radius:999px;background:var(--muted)}
+
+    .pill.good .dot{background: var(--good)}
+    .pill.warn .dot{background: var(--warn)}
+    .pill.bad .dot{background: var(--bad)}
+
+    .tabs{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-bottom:10px;
+    }
+
+    .tab{
+      padding:8px 10px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.04);
+      font-size:12px;
+      color:var(--muted);
+      cursor:pointer;
+      user-select:none;
+      transition: transform .15s ease, background .15s ease, border-color .15s ease;
+    }
+
+    .tab.active{
+      background: linear-gradient(135deg, rgba(124,92,255,.55), rgba(0,212,255,.22));
+      border-color: rgba(255,255,255,.22);
+      color: var(--text);
+    }
+
+    .tab:hover{transform: translateY(-1px); background: rgba(255,255,255,.06)}
+
+    .panel{
+      border-radius: var(--radius);
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.035);
+      overflow:hidden;
+    }
+
+    .panel .panel-head{
+      padding:12px 12px;
+      border-bottom:1px solid rgba(255,255,255,.07);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+
+    .panel .panel-head h3{margin:0; font-size:12px; letter-spacing:.25px; text-transform:uppercase; color:var(--muted)}
+    .panel .panel-body{padding:12px 12px 14px}
+
+    .kv{
+      display:grid;
+      grid-template-columns: 160px 1fr;
+      gap:10px;
+      align-items:start;
+      font-size:12px;
+      padding:8px 0;
+      border-bottom:1px dashed rgba(255,255,255,.10);
+    }
+    .kv:last-child{border-bottom:none}
+    .kv .k{color:var(--muted)}
+    .kv .v{color:var(--text); font-family: var(--mono); font-size:12px; word-break:break-word}
+
+    .codebox{
+      font-family: var(--mono);
+      font-size:12px;
+      line-height:1.4;
+      padding:12px;
+      border-radius: 16px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.25);
+      white-space: pre;
+      overflow:auto;
+      max-height: 260px;
+    }
+
+    .mini{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+    }
+
+    .row{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .range-wrap{
+      display:grid;
+      grid-template-columns: 1fr 70px;
+      gap:10px;
+      align-items:center;
+    }
+
+    input[type="range"]{width:100%}
+
+    .num{
+      width:70px;
+      text-align:right;
+      padding:10px 10px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(10,14,23,.55);
+      font-family: var(--mono);
+      font-size:12px;
+    }
+
+    .table{
+      width:100%;
+      border-collapse: collapse;
+      overflow:hidden;
+      border-radius: 16px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.22);
+    }
+
+    .table th, .table td{padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.08); font-size:12px}
+    .table th{color:var(--muted); text-transform:uppercase; letter-spacing:.25px; font-size:11px; text-align:left; background: rgba(255,255,255,.04)}
+    .table tr:last-child td{border-bottom:none}
+
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      font-family: var(--mono);
+      font-size:11px;
+      color:var(--muted);
+    }
+
+    .badge.good{border-color: rgba(57,217,138,.25); color: rgba(198,255,231,.92)}
+    .badge.warn{border-color: rgba(255,204,102,.25); color: rgba(255,241,205,.92)}
+    .badge.bad{border-color: rgba(255,92,122,.25); color: rgba(255,212,220,.92)}
+
+    .footer{
+      margin-top:12px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    .toast{
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      background: rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.14);
+      backdrop-filter: blur(10px);
+      padding:10px 12px;
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      color: rgba(255,255,255,.9);
+      font-size: 12px;
+      display:none;
+      max-width:min(720px, calc(100vw - 24px));
+    }
+
+    .toast.show{display:block; animation: pop .25s ease}
+    @keyframes pop{from{transform: translateX(-50%) translateY(8px); opacity:0}to{transform: translateX(-50%) translateY(0); opacity:1}}
+
+    .kbd{font-family:var(--mono); font-size:11px; padding:2px 6px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: var(--text)}
+
+    .hint{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius: 16px;
+      border:1px dashed rgba(255,255,255,.14);
+      background: rgba(255,255,255,.03);
+      color: var(--muted);
+      font-size:12px;
+    }
+
+    .divider{height:1px;background:rgba(255,255,255,.08); margin:12px 0}
+
+    .spark{
+      height: 42px;
+      width: 100%;
+      display:block;
+    }
+
+    .modal{
+      position:fixed;
+      inset:0;
+      z-index:220;
+      background: rgba(0,0,0,.62);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding: 16px;
+    }
+
+    .modal.show{display:flex}
+
+    .modal-card{
+      width:min(980px, 100%);
+      border-radius: 22px;
+      border:1px solid rgba(255,255,255,.14);
+      background: linear-gradient(180deg, rgba(255,255,255,.085), rgba(255,255,255,.035));
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .modal-head{
+      padding:14px 14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+
+    .modal-head h3{margin:0; font-size:13px; letter-spacing:.2px}
+
+    .modal-body{padding:14px}
+
+    .mono{font-family:var(--mono)}
+
+    .muted{color:var(--muted)}
+    .right{margin-left:auto}
+
+    .kbd-hint{display:flex; gap:10px; align-items:center}
+
+    .small{font-size:11px; color:var(--muted2)}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brand" title="MapLeak Lab">
+        <div class="logo"></div>
+        <div>
+          <h1>MapLeak Lab</h1>
+          <div class="sub">Source map risk simulator for AI tooling bundles</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <div class="chip" id="chipTrend">Trend: map file leak</div>
+        <button class="btn" id="btnShare">Share scenario</button>
+        <button class="btn" id="btnExport">Export report</button>
+        <button class="btn primary" id="btnRun">Recompute risk</button>
+        <button class="btn" id="btnHelp">Help</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <section class="card" id="leftCard">
+      <div class="card-header">
+        <div>
+          <h2>Scenario Builder</h2>
+          <p>Model a JavaScript bundle + source map setup (and an adversary) to estimate how painful a map-file exposure could be.</p>
+        </div>
+        <div class="pill" id="statusPill"><span class="dot"></span><span id="statusText">Idle</span></div>
+      </div>
+      <div class="card-body">
+        <div class="stack">
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Preset</h3>
+              <div class="row">
+                <button class="btn" id="btnPresetSafe">Safe-ish</button>
+                <button class="btn" id="btnPresetTypical">Typical</button>
+                <button class="btn danger" id="btnPresetSpicy">Spicy leak</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="grid2">
+                <div>
+                  <label for="pkgName">Package name</label>
+                  <input id="pkgName" type="text" placeholder="@acme/agent-cli" />
+                </div>
+                <div>
+                  <label for="version">Version</label>
+                  <input id="version" type="text" placeholder="1.2.3" />
+                </div>
+
+                <div>
+                  <label for="distTag">Dist tag</label>
+                  <select id="distTag">
+                    <option value="latest">latest</option>
+                    <option value="beta">beta</option>
+                    <option value="canary">canary</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="bundleType">Bundle type</label>
+                  <select id="bundleType">
+                    <option value="cli">CLI tool</option>
+                    <option value="web">Web app</option>
+                    <option value="sdk">SDK/library</option>
+                    <option value="vscode">VS Code extension</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="grid2">
+                <div>
+                  <label for="minifiedPct">Minification (%)</label>
+                  <div class="range-wrap">
+                    <input id="minifiedPct" type="range" min="0" max="100" value="70" />
+                    <div class="num" id="minifiedPctNum">70</div>
+                  </div>
+                </div>
+                <div>
+                  <label for="treeshakePct">Tree-shaking (%)</label>
+                  <div class="range-wrap">
+                    <input id="treeshakePct" type="range" min="0" max="100" value="55" />
+                    <div class="num" id="treeshakePctNum">55</div>
+                  </div>
+                </div>
+                <div>
+                  <label for="sourceMapMode">Source map shipped?</label>
+                  <select id="sourceMapMode">
+                    <option value="none">No</option>
+                    <option value="public">Yes — public (.map in package)</option>
+                    <option value="hidden">Yes — hidden sourceMappingURL</option>
+                    <option value="upload">Yes — uploaded to error tracker only</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="mapDetail">Map detail</label>
+                  <select id="mapDetail">
+                    <option value="names-only">Names only</option>
+                    <option value="paths">Paths + names</option>
+                    <option value="sourcesContent">Includes sourcesContent</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="grid2">
+                <div>
+                  <label for="secretsLikelihood">Secrets present (likelihood)</label>
+                  <div class="range-wrap">
+                    <input id="secretsLikelihood" type="range" min="0" max="100" value="20" />
+                    <div class="num" id="secretsLikelihoodNum">20</div>
+                  </div>
+                </div>
+                <div>
+                  <label for="internalDocs">Internal docs leakage</label>
+                  <select id="internalDocs">
+                    <option value="none">None</option>
+                    <option value="symbols">Symbol names hint architecture</option>
+                    <option value="paths">Paths reveal repo structure</option>
+                    <option value="content">Full internal comments/content</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+
+              <div>
+                <label>Guardrails (simulate what you did right)</label>
+                <div class="stack">
+                  <div class="toggle">
+                    <input id="gNoMapPublish" type="checkbox" />
+                    <div>
+                      <div class="t-title">Prevent .map publishing</div>
+                      <div class="t-sub">CI checks dist/ for *.map files</div>
+                    </div>
+                  </div>
+                  <div class="toggle">
+                    <input id="gSourcemapUploadOnly" type="checkbox" checked />
+                    <div>
+                      <div class="t-title">Upload maps privately</div>
+                      <div class="t-sub">Error tracker upload; maps not in package</div>
+                    </div>
+                  </div>
+                  <div class="toggle">
+                    <input id="gRedactSourcesContent" type="checkbox" />
+                    <div>
+                      <div class="t-title">Strip sourcesContent</div>
+                      <div class="t-sub">Keep mapping but avoid embedding original files</div>
+                    </div>
+                  </div>
+                  <div class="toggle">
+                    <input id="gSecretsScan" type="checkbox" checked />
+                    <div>
+                      <div class="t-title">Secrets scanning gate</div>
+                      <div class="t-sub">Block accidental keys/tokens before publish</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Attacker model</h3>
+              <div class="badge" id="attackerBadge">skill: medium</div>
+            </div>
+            <div class="panel-body">
+              <div class="grid2">
+                <div>
+                  <label for="attackerSkill">Skill level</label>
+                  <select id="attackerSkill">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="attackerGoal">Goal</label>
+                  <select id="attackerGoal">
+                    <option value="recon">Recon</option>
+                    <option value="exploit">Exploit bugs</option>
+                    <option value="supplychain">Supply chain / copycat</option>
+                    <option value="prompt">Prompt injection recipes</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="grid2">
+                <div>
+                  <label for="timeBudget">Time budget (hours)</label>
+                  <input id="timeBudget" type="number" min="1" max="200" value="6" />
+                </div>
+                <div>
+                  <label for="publicity">Visibility</label>
+                  <select id="publicity">
+                    <option value="quiet">Quiet package</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="viral">Viral launch</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+
+              <label for="customNotes">Notes (optional)</label>
+              <textarea id="customNotes" placeholder="e.g. CI publishes to npm on every merge; maps included in dist/ ..."></textarea>
+
+              <div class="hint">
+                <div>Tip: press <span class="kbd">R</span> to recompute and <span class="kbd">S</span> to copy a shareable URL.</div>
+                <div class="small" id="autosaveState">Autosave: on</div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Risk Console</h2>
+          <p>Get an explainable score, simulated artifacts, and a guardrail patch plan you can paste into a release checklist.</p>
+        </div>
+        <div class="row">
+          <div class="pill" id="pillMode"><span class="dot"></span><span id="pillModeText">Explain</span></div>
+        </div>
+      </div>
+      <div class="card-body">
+
+        <div class="meter" id="meter">
+          <div class="meter-top">
+            <h3>Total leak risk</h3>
+            <div class="score" id="score">—</div>
+          </div>
+          <div class="bar"><div id="barFill"></div></div>
+          <div class="row" style="margin-top:10px; position:relative">
+            <span class="pill" id="severityPill"><span class="dot"></span><span id="severityText">—</span></span>
+            <span class="pill right"><span class="dot" style="background:rgba(255,255,255,.45)"></span><span id="headline">Tune the scenario and recompute</span></span>
+          </div>
+          <svg class="spark" id="spark" viewBox="0 0 220 42" preserveAspectRatio="none" aria-label="risk sparkline"></svg>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="tabs" id="tabs">
+          <div class="tab active" data-tab="explain">Explain</div>
+          <div class="tab" data-tab="artifact">Artifact sim</div>
+          <div class="tab" data-tab="patch">Guardrail patch</div>
+          <div class="tab" data-tab="leaderboard">Leaderboard</div>
+        </div>
+
+        <div id="tab-explain" class="tabpanel">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Score breakdown</h3>
+              <span class="badge" id="explainBadge">v0</span>
+            </div>
+            <div class="panel-body">
+              <div id="breakdown"></div>
+            </div>
+          </div>
+
+          <div style="height:12px"></div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>What an attacker gets</h3>
+              <span class="badge" id="lootBadge">loot</span>
+            </div>
+            <div class="panel-body">
+              <table class="table" id="lootTable" aria-label="attacker loot table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Impact</th>
+                    <th>Likelihood</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+              <div class="footer">This is a simulation meant to drive conversations and checklists, not a security assessment.</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-artifact" class="tabpanel" style="display:none">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Generated "leaked" map preview</h3>
+              <div class="row">
+                <button class="btn" id="btnGenMap">Regenerate</button>
+                <button class="btn" id="btnCopyMap">Copy</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="mini">This is a fake-but-plausible source map-like JSON with fields based on your scenario.</div>
+              <div class="codebox" id="mapPreview"></div>
+            </div>
+          </div>
+
+          <div style="height:12px"></div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Recon timeline</h3>
+              <span class="badge" id="timelineBadge">t+0</span>
+            </div>
+            <div class="panel-body">
+              <div class="codebox" id="timeline"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-patch" class="tabpanel" style="display:none">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Patch plan</h3>
+              <div class="row">
+                <button class="btn" id="btnCopyPatch">Copy</button>
+                <button class="btn" id="btnOpenChecklist">Checklist view</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="mini">A pragmatic, tool-agnostic plan. Toggle guardrails on the left to see items turn green.</div>
+              <div class="codebox" id="patchPlan"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-leaderboard" class="tabpanel" style="display:none">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Local leaderboard</h3>
+              <div class="row">
+                <button class="btn" id="btnSaveRun">Save run</button>
+                <button class="btn danger" id="btnClearRuns">Clear</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="mini">This stays in your browser (localStorage). Try different presets and save them.</div>
+              <div style="height:10px"></div>
+              <table class="table" id="runsTable" aria-label="saved runs table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Package</th>
+                    <th>Score</th>
+                    <th>Severity</th>
+                    <th>Open</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="modal" id="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modalTitle">Modal</h3>
+        <div class="row">
+          <div class="kbd-hint small">Press <span class="kbd">Esc</span> to close</div>
+          <button class="btn" id="btnCloseModal">Close</button>
+        </div>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script>
+    // MapLeak Lab
+    // A browser-only simulator that helps teams reason about source map exposure.
+    // Inspired by the trend: "Claude Code's source code has been leaked via a map file in their NPM registry".
+
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+    const els = {
+      pkgName: $('#pkgName'),
+      version: $('#version'),
+      distTag: $('#distTag'),
+      bundleType: $('#bundleType'),
+
+      minifiedPct: $('#minifiedPct'),
+      minifiedPctNum: $('#minifiedPctNum'),
+      treeshakePct: $('#treeshakePct'),
+      treeshakePctNum: $('#treeshakePctNum'),
+      sourceMapMode: $('#sourceMapMode'),
+      mapDetail: $('#mapDetail'),
+
+      secretsLikelihood: $('#secretsLikelihood'),
+      secretsLikelihoodNum: $('#secretsLikelihoodNum'),
+      internalDocs: $('#internalDocs'),
+
+      gNoMapPublish: $('#gNoMapPublish'),
+      gSourcemapUploadOnly: $('#gSourcemapUploadOnly'),
+      gRedactSourcesContent: $('#gRedactSourcesContent'),
+      gSecretsScan: $('#gSecretsScan'),
+
+      attackerSkill: $('#attackerSkill'),
+      attackerGoal: $('#attackerGoal'),
+      timeBudget: $('#timeBudget'),
+      publicity: $('#publicity'),
+      customNotes: $('#customNotes'),
+
+      btnRun: $('#btnRun'),
+      btnShare: $('#btnShare'),
+      btnExport: $('#btnExport'),
+      btnHelp: $('#btnHelp'),
+
+      btnPresetSafe: $('#btnPresetSafe'),
+      btnPresetTypical: $('#btnPresetTypical'),
+      btnPresetSpicy: $('#btnPresetSpicy'),
+
+      statusPill: $('#statusPill'),
+      statusText: $('#statusText'),
+      attackerBadge: $('#attackerBadge'),
+
+      meter: $('#meter'),
+      score: $('#score'),
+      barFill: $('#barFill'),
+      severityPill: $('#severityPill'),
+      severityText: $('#severityText'),
+      headline: $('#headline'),
+      spark: $('#spark'),
+
+      breakdown: $('#breakdown'),
+      lootTable: $('#lootTable tbody'),
+
+      tabs: $('#tabs'),
+      tabExplain: $('#tab-explain'),
+      tabArtifact: $('#tab-artifact'),
+      tabPatch: $('#tab-patch'),
+      tabLeaderboard: $('#tab-leaderboard'),
+      pillModeText: $('#pillModeText'),
+      pillMode: $('#pillMode'),
+
+      mapPreview: $('#mapPreview'),
+      timeline: $('#timeline'),
+      patchPlan: $('#patchPlan'),
+
+      btnGenMap: $('#btnGenMap'),
+      btnCopyMap: $('#btnCopyMap'),
+      btnCopyPatch: $('#btnCopyPatch'),
+      btnOpenChecklist: $('#btnOpenChecklist'),
+      btnSaveRun: $('#btnSaveRun'),
+      btnClearRuns: $('#btnClearRuns'),
+
+      toast: $('#toast'),
+
+      modal: $('#modal'),
+      modalTitle: $('#modalTitle'),
+      modalBody: $('#modalBody'),
+      btnCloseModal: $('#btnCloseModal'),
+
+      chipTrend: $('#chipTrend'),
+      explainBadge: $('#explainBadge'),
+      lootBadge: $('#lootBadge'),
+      timelineBadge: $('#timelineBadge'),
+      autosaveState: $('#autosaveState'),
+    };
+
+    const APP = {
+      version: '1.0.0',
+      seed: 1337,
+      lastScore: null,
+      sparkHistory: [],
+      lastMap: null,
+      lastTimeline: null,
+      lastPatch: null,
+      autosave: true,
+    };
+
+    function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+    function lerp(a,b,t){ return a + (b-a)*t; }
+    function fmtPct(n){ return `${Math.round(n)}%`; }
+    function nowIso(){ return new Date().toISOString(); }
+
+    function rand(seed){
+      // Mulberry32 for deterministic randomness
+      let t = seed >>> 0;
+      return function(){
+        t += 0x6D2B79F5;
+        let r = Math.imul(t ^ (t >>> 15), 1 | t);
+        r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+        return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+      }
+    }
+
+    function hashStr(str){
+      let h = 2166136261;
+      for (let i=0;i<str.length;i++){
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return (h >>> 0);
+    }
+
+    function toast(msg, ms=2200){
+      els.toast.textContent = msg;
+      els.toast.classList.add('show');
+      clearTimeout(toast._t);
+      toast._t = setTimeout(()=>els.toast.classList.remove('show'), ms);
+    }
+
+    function setStatus(text, kind='idle'){
+      els.statusText.textContent = text;
+      els.statusPill.classList.remove('good','warn','bad');
+      if(kind==='good') els.statusPill.classList.add('good');
+      if(kind==='warn') els.statusPill.classList.add('warn');
+      if(kind==='bad') els.statusPill.classList.add('bad');
+    }
+
+    function pillSet(pill, text, sev){
+      pill.classList.remove('good','warn','bad');
+      if(sev) pill.classList.add(sev);
+      pill.querySelector('span:last-child').textContent = text;
+    }
+
+    function getState(){
+      return {
+        v: APP.version,
+        pkgName: els.pkgName.value.trim() || '@acme/agent-cli',
+        version: els.version.value.trim() || '0.0.0',
+        distTag: els.distTag.value,
+        bundleType: els.bundleType.value,
+        minifiedPct: Number(els.minifiedPct.value),
+        treeshakePct: Number(els.treeshakePct.value),
+        sourceMapMode: els.sourceMapMode.value,
+        mapDetail: els.mapDetail.value,
+        secretsLikelihood: Number(els.secretsLikelihood.value),
+        internalDocs: els.internalDocs.value,
+        guardrails: {
+          noMapPublish: els.gNoMapPublish.checked,
+          sourcemapUploadOnly: els.gSourcemapUploadOnly.checked,
+          redactSourcesContent: els.gRedactSourcesContent.checked,
+          secretsScan: els.gSecretsScan.checked,
+        },
+        attacker: {
+          skill: els.attackerSkill.value,
+          goal: els.attackerGoal.value,
+          timeBudget: clamp(Number(els.timeBudget.value || 1), 1, 200),
+          publicity: els.publicity.value,
+        },
+        notes: els.customNotes.value,
+        seed: APP.seed,
+        at: nowIso(),
+      };
+    }
+
+    function setState(s){
+      if(!s) return;
+      els.pkgName.value = s.pkgName ?? '@acme/agent-cli';
+      els.version.value = s.version ?? '0.0.0';
+      els.distTag.value = s.distTag ?? 'latest';
+      els.bundleType.value = s.bundleType ?? 'cli';
+      els.minifiedPct.value = s.minifiedPct ?? 70;
+      els.treeshakePct.value = s.treeshakePct ?? 55;
+      els.sourceMapMode.value = s.sourceMapMode ?? 'public';
+      els.mapDetail.value = s.mapDetail ?? 'paths';
+      els.secretsLikelihood.value = s.secretsLikelihood ?? 20;
+      els.internalDocs.value = s.internalDocs ?? 'symbols';
+
+      const g = s.guardrails ?? {};
+      els.gNoMapPublish.checked = !!g.noMapPublish;
+      els.gSourcemapUploadOnly.checked = !!g.sourcemapUploadOnly;
+      els.gRedactSourcesContent.checked = !!g.redactSourcesContent;
+      els.gSecretsScan.checked = !!g.secretsScan;
+
+      const a = s.attacker ?? {};
+      els.attackerSkill.value = a.skill ?? 'medium';
+      els.attackerGoal.value = a.goal ?? 'recon';
+      els.timeBudget.value = a.timeBudget ?? 6;
+      els.publicity.value = a.publicity ?? 'normal';
+
+      els.customNotes.value = s.notes ?? '';
+      if(Number.isFinite(s.seed)) APP.seed = s.seed;
+
+      syncRangeNumbers();
+      updateAttackerBadge();
+    }
+
+    function syncRangeNumbers(){
+      els.minifiedPctNum.textContent = els.minifiedPct.value;
+      els.treeshakePctNum.textContent = els.treeshakePct.value;
+      els.secretsLikelihoodNum.textContent = els.secretsLikelihood.value;
+    }
+
+    function updateAttackerBadge(){
+      const skill = els.attackerSkill.value;
+      const goal = els.attackerGoal.value;
+      els.attackerBadge.textContent = `skill: ${skill} • goal: ${goal}`;
+      els.attackerBadge.classList.remove('good','warn','bad');
+      if(skill==='low') els.attackerBadge.classList.add('good');
+      if(skill==='medium') els.attackerBadge.classList.add('warn');
+      if(skill==='high') els.attackerBadge.classList.add('bad');
+    }
+
+    function severity(score){
+      if(score < 30) return {label:'Low', sev:'good'};
+      if(score < 60) return {label:'Medium', sev:'warn'};
+      return {label:'High', sev:'bad'};
+    }
+
+    function computeRisk(s){
+      // Intentionally explainable heuristic scoring.
+      // Score = exposure + detail + attacker capability + value - guardrails.
+
+      const base = {
+        none: 0,
+        upload: 12,
+        hidden: 35,
+        public: 55,
+      }[s.sourceMapMode] ?? 30;
+
+      const detail = {
+        'names-only': 8,
+        'paths': 18,
+        'sourcesContent': 32,
+      }[s.mapDetail] ?? 16;
+
+      const internalDocs = {
+        none: 0,
+        symbols: 10,
+        paths: 22,
+        content: 36,
+      }[s.internalDocs] ?? 10;
+
+      const minifyPenalty = lerp(28, 0, clamp(s.minifiedPct,0,100)/100);
+      const treeshakePenalty = lerp(18, 0, clamp(s.treeshakePct,0,100)/100);
+
+      const attackerSkill = { low: 10, medium: 20, high: 34 }[s.attacker.skill] ?? 20;
+      const goalBonus = { recon: 6, exploit: 18, supplychain: 22, prompt: 16 }[s.attacker.goal] ?? 10;
+
+      const timeBonus = clamp(Math.log2(s.attacker.timeBudget + 1) * 7, 0, 24);
+      const publicity = { quiet: 0, normal: 8, viral: 18 }[s.attacker.publicity] ?? 8;
+
+      const typeValue = { cli: 10, web: 12, sdk: 14, vscode: 16 }[s.bundleType] ?? 12;
+
+      const secrets = clamp(s.secretsLikelihood, 0, 100) * 0.35;
+
+      let guard = 0;
+      if(s.guardrails.noMapPublish) guard += 30;
+      if(s.guardrails.sourcemapUploadOnly) guard += 18;
+      if(s.guardrails.redactSourcesContent) guard += 14;
+      if(s.guardrails.secretsScan) guard += 12;
+
+      // Contradictions: if user says "public maps" but also "upload only", reduce guardrail effect.
+      const contradictions = [];
+      if(s.sourceMapMode === 'public' && s.guardrails.sourcemapUploadOnly) contradictions.push('uploadOnlyButPublic');
+      if(s.mapDetail === 'sourcesContent' && s.guardrails.redactSourcesContent) contradictions.push('redactButEmbedded');
+      let contradictionPenalty = contradictions.length * 10;
+
+      const raw = base + detail + internalDocs + minifyPenalty + treeshakePenalty + attackerSkill + goalBonus + timeBonus + publicity + typeValue + secrets - guard + contradictionPenalty;
+      const score = clamp(raw, 0, 100);
+
+      const breakdown = [
+        {k:'Exposure (maps shipped)', v: base, why: explainExposure(s.sourceMapMode)},
+        {k:'Map detail', v: detail, why: explainDetail(s.mapDetail)},
+        {k:'Internal information', v: internalDocs, why: explainDocs(s.internalDocs)},
+        {k:'De-obfuscation cost', v: (minifyPenalty+treeshakePenalty), why: `Higher minification/tree-shaking makes reverse engineering harder.`},
+        {k:'Attacker capability', v: (attackerSkill+goalBonus+timeBonus+publicity), why: explainAttacker(s.attacker)},
+        {k:'Secrets probability', v: secrets, why: `Potential keys/tokens/configs exposed in sourcesContent or readable paths.`},
+        {k:'Guardrails', v: -guard, why: explainGuardrails(s.guardrails)},
+      ];
+
+      return { score, raw, breakdown, contradictions };
+    }
+
+    function explainExposure(mode){
+      return {
+        none: 'No maps shipped, so an attacker must do heavier reverse engineering.',
+        upload: 'Maps exist but are intended to stay private; accidental publication still possible.',
+        hidden: 'Hidden maps can still be discovered and fetched; risk depends on hosting.',
+        public: 'Public .map files are directly fetchable and often include rich metadata.',
+      }[mode] || 'Exposure depends on where maps are hosted and who can download them.';
+    }
+
+    function explainDetail(detail){
+      return {
+        'names-only': 'Symbol names help understanding but do not reveal file layout.',
+        'paths': 'Paths reveal repo structure, internal modules, and code organization.',
+        'sourcesContent': 'Embedding original sources can reveal full implementation details.',
+      }[detail] || 'Detail varies based on toolchain and configuration.';
+    }
+
+    function explainDocs(v){
+      return {
+        none: 'Minimal architecture clues.',
+        symbols: 'Exports and function names hint at modules and features.',
+        paths: 'File paths reveal internal boundaries and component names.',
+        content: 'Comments and internal notes can expose security assumptions.',
+      }[v] || 'More metadata increases recon value.';
+    }
+
+    function explainAttacker(a){
+      const skill = {low:'low', medium:'medium', high:'high'}[a.skill] || 'medium';
+      const goal = {recon:'recon', exploit:'bug hunting', supplychain:'copycat/supply chain', prompt:'prompt injection'}[a.goal] || 'recon';
+      return `A ${skill}-skill attacker focused on ${goal} with ~${a.timeBudget}h and ${a.publicity} visibility.`;
+    }
+
+    function explainGuardrails(g){
+      const parts = [];
+      parts.push(g.noMapPublish ? 'CI blocks map publication.' : 'No CI rule blocking .map files.');
+      parts.push(g.sourcemapUploadOnly ? 'Maps uploaded privately.' : 'No private upload-only workflow.');
+      parts.push(g.redactSourcesContent ? 'sourcesContent stripped.' : 'sourcesContent may be included.');
+      parts.push(g.secretsScan ? 'Secrets scanning gate.' : 'No secrets scanning gate.');
+      return parts.join(' ');
+    }
+
+    function lootItems(s){
+      // Rows: Item, impact, likelihood
+      const exposureFactor = {
+        none: 0.1,
+        upload: 0.35,
+        hidden: 0.55,
+        public: 0.85,
+      }[s.sourceMapMode] ?? 0.55;
+
+      const detailFactor = {
+        'names-only': 0.35,
+        'paths': 0.65,
+        'sourcesContent': 0.95,
+      }[s.mapDetail] ?? 0.65;
+
+      const skillFactor = {low:0.45, medium:0.7, high:0.9}[s.attacker.skill] ?? 0.7;
+
+      const guardFactor = 1 - clamp(
+        (s.guardrails.noMapPublish?0.28:0) +
+        (s.guardrails.sourcemapUploadOnly?0.18:0) +
+        (s.guardrails.redactSourcesContent?0.12:0) +
+        (s.guardrails.secretsScan?0.12:0)
+      , 0, 0.72);
+
+      const baseLikely = (exposureFactor * detailFactor * skillFactor * guardFactor);
+
+      function lk(x){ return clamp(x, 0, 1); }
+      function impactLabel(i){
+        if(i < 0.35) return {t:'Low', c:'good'};
+        if(i < 0.7) return {t:'Medium', c:'warn'};
+        return {t:'High', c:'bad'};
+      }
+
+      const items = [
+        {
+          item: 'Readable module/function names',
+          impact: 0.45,
+          likelihood: lk(baseLikely * (s.mapDetail==='names-only'?1.0:1.1)),
+        },
+        {
+          item: 'Repo file structure hints',
+          impact: 0.65,
+          likelihood: lk(baseLikely * (s.mapDetail==='paths' || s.mapDetail==='sourcesContent' ? 1.15 : 0.4)),
+        },
+        {
+          item: 'Full source reconstruction',
+          impact: 0.85,
+          likelihood: lk(baseLikely * (s.mapDetail==='sourcesContent' ? 1.25 : 0.35)),
+        },
+        {
+          item: 'Config endpoints/URLs',
+          impact: 0.7,
+          likelihood: lk(baseLikely * (s.internalDocs==='paths' || s.internalDocs==='content' ? 1.05 : 0.6)),
+        },
+        {
+          item: 'Credentials/secrets',
+          impact: 1.0,
+          likelihood: lk(baseLikely * (clamp(s.secretsLikelihood,0,100)/100) * (s.mapDetail==='sourcesContent'?1.15:0.6)),
+        },
+        {
+          item: 'Prompt injection playbook',
+          impact: 0.8,
+          likelihood: lk(baseLikely * (s.attacker.goal==='prompt'?1.2:0.55) * (s.bundleType==='cli'||s.bundleType==='vscode'?1.1:0.9)),
+        },
+      ];
+
+      return items.map(r => {
+        const im = impactLabel(r.impact);
+        const lkPct = Math.round(r.likelihood * 100);
+        return {
+          ...r,
+          impactLabel: im,
+          likelihoodPct: lkPct,
+          likelihoodLabel: lkPct < 35 ? {t:'Low', c:'good'} : lkPct < 70 ? {t:'Medium', c:'warn'} : {t:'High', c:'bad'}
+        };
+      });
+    }
+
+    function buildBreakdown(breakdown){
+      const wrap = document.createElement('div');
+      breakdown.forEach((row, i) => {
+        const div = document.createElement('div');
+        div.className = 'kv';
+        const val = (row.v>=0?'+':'') + (Math.round(row.v*10)/10);
+        div.innerHTML = `
+          <div class="k">${escapeHtml(row.k)}</div>
+          <div class="v">${escapeHtml(val)}\n<span class="muted" style="font-family:var(--sans)">${escapeHtml(row.why)}</span></div>
+        `;
+        wrap.appendChild(div);
+      });
+      return wrap;
+    }
+
+    function escapeHtml(s){
+      return String(s)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'",'&#039;');
+    }
+
+    function updateLootTable(items){
+      els.lootTable.innerHTML = '';
+      items.forEach(it => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(it.item)}</td>
+          <td><span class="badge ${it.impactLabel.c}">${it.impactLabel.t}</span></td>
+          <td><span class="badge ${it.likelihoodLabel.c}">${it.likelihoodPct}%</span></td>
+        `;
+        els.lootTable.appendChild(tr);
+      });
+    }
+
+    function makeSpark(svg, values){
+      // values in [0..100]
+      const w = 220, h = 42;
+      const pad = 4;
+      if(values.length < 2){
+        svg.innerHTML = '';
+        return;
+      }
+
+      const xs = values.map((_,i)=> pad + i*(w-2*pad)/(values.length-1));
+      const ys = values.map(v => {
+        const t = clamp(v,0,100)/100;
+        return pad + (1-t)*(h-2*pad);
+      });
+
+      let d = `M ${xs[0].toFixed(2)} ${ys[0].toFixed(2)}`;
+      for(let i=1;i<xs.length;i++){
+        const x = xs[i], y = ys[i];
+        const x0 = xs[i-1], y0 = ys[i-1];
+        const cx = (x0 + x)/2;
+        d += ` C ${cx.toFixed(2)} ${y0.toFixed(2)}, ${cx.toFixed(2)} ${y.toFixed(2)}, ${x.toFixed(2)} ${y.toFixed(2)}`;
+      }
+
+      const fillPath = d + ` L ${w-pad} ${h-pad} L ${pad} ${h-pad} Z`;
+
+      svg.innerHTML = `
+        <defs>
+          <linearGradient id="g" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0" stop-color="rgba(0,212,255,.95)"/>
+            <stop offset="0.55" stop-color="rgba(124,92,255,.95)"/>
+            <stop offset="1" stop-color="rgba(255,61,154,.95)"/>
+          </linearGradient>
+          <linearGradient id="gf" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stop-color="rgba(0,212,255,.18)"/>
+            <stop offset="1" stop-color="rgba(0,212,255,0)"/>
+          </linearGradient>
+          <filter id="glow" x="-20%" y="-50%" width="140%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="b"/>
+            <feMerge>
+              <feMergeNode in="b"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <path d="${fillPath}" fill="url(#gf)"/>
+        <path d="${d}" fill="none" stroke="url(#g)" stroke-width="2" filter="url(#glow)"/>
+      `;
+    }
+
+    function buildFakeMap(s){
+      // Not a real sourcemap, but shaped like one.
+      const r = rand(hashStr(JSON.stringify(s)));
+      const files = [];
+      const n = clamp(Math.round(lerp(6, 18, r())), 6, 22);
+
+      const root = s.pkgName.replaceAll('@','').replaceAll('/','-');
+      const folders = ['src', 'lib', 'core', 'agent', 'tools', 'prompts', 'ui', 'net', 'auth', 'telemetry'];
+      for(let i=0;i<n;i++){
+        const f1 = folders[Math.floor(r()*folders.length)];
+        const f2 = folders[Math.floor(r()*folders.length)];
+        const leaf = pick([ 'index', 'runner', 'cli', 'commands', 'pipeline', 'planner', 'memory', 'safety', 'sandbox', 'fs', 'http', 'token', 'provider', 'registry', 'telemetry' ], r);
+        const ext = pick(['ts','tsx','js'], r);
+        const p = (s.mapDetail==='paths' || s.mapDetail==='sourcesContent')
+          ? `${root}/${f1}/${f2}/${leaf}.${ext}`
+          : `${leaf}.${ext}`;
+        files.push(p);
+      }
+
+      const names = [];
+      const words = ['agent','plan','tool','invoke','guard','policy','router','cache','stream','delta','patch','prompt','context','trace','token','redact','manifest','resolve','publish','verify'];
+      const m = clamp(Math.round(lerp(20, 60, r())), 20, 80);
+      for(let i=0;i<m;i++){
+        names.push(pick(words,r) + '_' + Math.floor(r()*999));
+      }
+
+      const includeSources = (s.mapDetail==='sourcesContent') && !s.guardrails.redactSourcesContent;
+      const sourcesContent = includeSources ? files.map((p,i)=>{
+        const header = `// ${p}\n// generated preview\n`;
+        const body = `export function ${names[(i*3)%names.length]}(){\n  return \"${pick(words,r)}:${Math.floor(r()*9999)}\";\n}\n`;
+        const comment = s.internalDocs==='content' ? `\n// NOTE: internal endpoint: https://internal-${pick(['api','edge','vault','broker'],r)}.corp\n` : '';
+        return header + body + comment;
+      }) : undefined;
+
+      const mappingsComplexity = clamp( Math.round(lerp(800, 5200, r())), 800, 8000 );
+      const mappings = 'A'.repeat(Math.min(mappingsComplexity, 2400)) + (mappingsComplexity>2400 ? '...' : '');
+
+      const out = {
+        version: 3,
+        file: 'dist/index.js',
+        sources: files,
+        names: (s.mapDetail==='names-only' || s.mapDetail==='paths' || s.mapDetail==='sourcesContent') ? names : [],
+        sourcesContent: sourcesContent,
+        sourceRoot: '',
+        mappings,
+        x_mapleak: {
+          generatedAt: nowIso(),
+          scenario: {
+            pkg: s.pkgName,
+            version: s.version,
+            distTag: s.distTag,
+            bundleType: s.bundleType,
+            mapDetail: s.mapDetail,
+            exposure: s.sourceMapMode
+          }
+        }
+      };
+
+      return JSON.stringify(out, null, 2);
+    }
+
+    function pick(arr, r){ return arr[Math.floor(r()*arr.length)] }
+
+    function buildTimeline(s, score){
+      const r = rand(hashStr(s.pkgName + s.version + score));
+      const steps = [];
+      const skill = s.attacker.skill;
+      const goal = s.attacker.goal;
+      const hours = s.attacker.timeBudget;
+
+      function h(x){ return `t+${x}h`; }
+      let t = 0;
+
+      steps.push(`${h(t)} • Discover package ${s.pkgName}@${s.version} (${s.distTag})`);
+
+      if(s.sourceMapMode === 'public'){
+        t += 0;
+        steps.push(`${h(t)} • Find dist/index.js.map inside tarball`);
+      } else if(s.sourceMapMode === 'hidden'){
+        t += 1;
+        steps.push(`${h(t)} • Inspect bundle footer; locate sourceMappingURL; fetch map from CDN`);
+      } else if(s.sourceMapMode === 'upload'){
+        t += 2;
+        steps.push(`${h(t)} • Probe error tracker endpoints; attempt to guess map upload paths`);
+      } else {
+        t += 2;
+        steps.push(`${h(t)} • No maps. Switch to de-minification + manual renaming`);
+      }
+
+      if(s.mapDetail==='sourcesContent'){
+        t += 1;
+        steps.push(`${h(t)} • Reconstruct original modules from sourcesContent`);
+      } else if(s.mapDetail==='paths'){
+        t += 2;
+        steps.push(`${h(t)} • Infer architecture from file paths + names`);
+      } else {
+        t += 3;
+        steps.push(`${h(t)} • Build symbol map from minified identifiers and runtime behavior`);
+      }
+
+      const extras = [];
+      if(goal==='recon') extras.push('Document module boundaries and feature flags');
+      if(goal==='exploit') extras.push('Look for unsafe deserialization, path traversal, command injection');
+      if(goal==='supplychain') extras.push('Clone UX/API shape; publish confusingly similar package');
+      if(goal==='prompt') extras.push('Extract tool prompts; design prompt injection inputs');
+
+      const ex = pick(extras, r);
+      t += clamp(Math.round(lerp(1, 6, r())), 1, 6);
+      steps.push(`${h(t)} • ${ex}`);
+
+      const end = clamp(Math.min(hours, t + 2), 1, 200);
+      steps.push(`${h(end)} • Outcome: ${outcomeLine(score, skill)}`);
+
+      return steps.join('\n');
+    }
+
+    function outcomeLine(score, skill){
+      if(score < 30) return 'Mostly harmless: slower reverse engineering, limited insight.';
+      if(score < 60) return skill==='high' ? 'Meaningful insight: likely architecture + workflows.' : 'Some insight: module names + hints, partial workflows.';
+      return skill==='low' ? 'Surprisingly useful: copycat playbook with limited depth.' : 'Severe: effective reconstruction and practical attack paths.';
+    }
+
+    function buildPatch(s, result){
+      const lines = [];
+      lines.push(`# MapLeak Guardrail Patch Plan`);
+      lines.push(`package: ${s.pkgName}@${s.version} (${s.distTag})`);
+      lines.push(`bundle: ${s.bundleType} • exposure: ${s.sourceMapMode} • mapDetail: ${s.mapDetail}`);
+      lines.push(`riskScore: ${result.score}/100 • contradictions: ${result.contradictions.length || 0}`);
+      lines.push('');
+
+      const checks = [
+        {
+          title: 'Block .map publication',
+          ok: s.guardrails.noMapPublish,
+          why: 'Prevents accidental publication via npm or static hosting.',
+          how: [
+            '- Add CI step: fail if dist/**/*.map exists',
+            '- Add npmignore / files whitelist',
+            '- Add release checklist item: "Verify tarball contents"'
+          ]
+        },
+        {
+          title: 'Upload maps privately (error tracker)',
+          ok: s.guardrails.sourcemapUploadOnly,
+          why: 'Keeps debugging benefits while reducing public exposure.',
+          how: [
+            '- Generate maps in CI and upload to tracker',
+            '- Verify maps are not shipped in package',
+            '- Rotate upload auth token and scope it to project'
+          ]
+        },
+        {
+          title: 'Strip sourcesContent',
+          ok: s.guardrails.redactSourcesContent,
+          why: 'Reduces full source reconstruction if a map leaks.',
+          how: [
+            '- Configure bundler: exclude sourcesContent',
+            '- Keep names/paths only if you need them for stack traces',
+            '- Prefer server-side symbolication'
+          ]
+        },
+        {
+          title: 'Secrets scanning gate',
+          ok: s.guardrails.secretsScan,
+          why: 'Blocks hardcoded tokens, endpoints, and private keys pre-release.',
+          how: [
+            '- Run secrets scanner on source + build artifacts',
+            '- Treat findings as build-breaking',
+            '- Ensure CI redacts logs containing secrets'
+          ]
+        }
+      ];
+
+      lines.push('## Checklist');
+      checks.forEach(c => {
+        lines.push(`- [${c.ok ? 'x' : ' '}] ${c.title}`);
+        lines.push(`  - why: ${c.why}`);
+        c.how.forEach(h => lines.push(`  ${h}`));
+      });
+
+      lines.push('');
+      lines.push('## Defensive release notes (optional)');
+      lines.push('- We do not publish source maps to the public registry.');
+      lines.push('- If you find an exposed map file, please report it via security@yourdomain.');
+      lines.push('');
+      lines.push('## Quick sanity checks');
+      lines.push('- Inspect npm tarball (e.g., pack) before publishing');
+      lines.push('- Grep build output for sourceMappingURL');
+      lines.push('- Confirm symbolication works in staging');
+
+      if(result.contradictions.length){
+        lines.push('');
+        lines.push('## Contradictions detected');
+        result.contradictions.forEach(c => {
+          if(c==='uploadOnlyButPublic') lines.push('- You marked "Upload maps privately" but also set exposure to "public".');
+          if(c==='redactButEmbedded') lines.push('- You enabled "Strip sourcesContent" but set mapDetail to include sourcesContent.');
+        });
+      }
+
+      return lines.join('\n');
+    }
+
+    function setTab(name){
+      $$('.tab', els.tabs).forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+      els.tabExplain.style.display = (name==='explain') ? '' : 'none';
+      els.tabArtifact.style.display = (name==='artifact') ? '' : 'none';
+      els.tabPatch.style.display = (name==='patch') ? '' : 'none';
+      els.tabLeaderboard.style.display = (name==='leaderboard') ? '' : 'none';
+      els.pillModeText.textContent = ({explain:'Explain', artifact:'Artifact sim', patch:'Guardrail patch', leaderboard:'Leaderboard'})[name] || 'Explain';
+    }
+
+    function recompute(){
+      setStatus('Computing…', 'warn');
+      const s = getState();
+      const res = computeRisk(s);
+
+      // update meter
+      els.score.textContent = Math.round(res.score);
+      els.barFill.style.width = `${res.score}%`;
+      const sev = severity(res.score);
+      pillSet(els.severityPill, `${sev.label} severity`, sev.sev);
+
+      // headline
+      const head = headlineFor(res.score, s);
+      els.headline.textContent = head;
+
+      // breakdown
+      els.breakdown.innerHTML = '';
+      els.breakdown.appendChild(buildBreakdown(res.breakdown));
+      els.explainBadge.textContent = `v${APP.version}`;
+
+      // loot table
+      const loot = lootItems(s);
+      updateLootTable(loot);
+      els.lootBadge.textContent = `items: ${loot.length}`;
+
+      // artifact + patch (lazy generate but update caches)
+      APP.lastMap = buildFakeMap(s);
+      APP.lastTimeline = buildTimeline(s, res.score);
+      APP.lastPatch = buildPatch(s, res);
+
+      // update views
+      els.mapPreview.textContent = APP.lastMap;
+      els.timeline.textContent = APP.lastTimeline;
+      els.patchPlan.textContent = APP.lastPatch;
+      els.timelineBadge.textContent = `score ${Math.round(res.score)}`;
+
+      // sparkline history
+      APP.lastScore = res.score;
+      APP.sparkHistory.push(res.score);
+      if(APP.sparkHistory.length > 24) APP.sparkHistory.shift();
+      makeSpark(els.spark, APP.sparkHistory);
+
+      // card glow motion center
+      const mx = clamp( (res.score/100)*100, 0, 100 );
+      els.meter.style.setProperty('--mx', `${mx}%`);
+      els.meter.style.setProperty('--my', `${clamp(20 + (s.attacker.timeBudget/200)*70, 0, 100)}%`);
+
+      setStatus('Ready', sev.sev);
+      persist();
+    }
+
+    function headlineFor(score, s){
+      if(score < 30) return 'Maps are probably not your biggest problem today.';
+      if(score < 60) return s.mapDetail==='sourcesContent' ? 'sourcesContent makes reconstruction realistic.' : 'An attacker gets a meaningful head start.';
+      return s.sourceMapMode==='public' ? 'Public maps: expect fast reconstruction.' : 'A leak would be painful. Tighten the release pipeline.';
+    }
+
+    function persist(){
+      if(!APP.autosave) return;
+      const state = getState();
+      try{
+        localStorage.setItem('mapleak.state', JSON.stringify(state));
+        localStorage.setItem('mapleak.spark', JSON.stringify(APP.sparkHistory));
+        els.autosaveState.textContent = 'Autosave: on';
+      }catch(e){
+        els.autosaveState.textContent = 'Autosave: failed';
+      }
+      // update share hash for convenience
+      syncHashFromState(state);
+    }
+
+    function loadPersisted(){
+      const fromHash = parseHash();
+      if(fromHash){
+        setState(fromHash);
+        toast('Loaded scenario from URL.');
+        return true;
+      }
+
+      try{
+        const s = localStorage.getItem('mapleak.state');
+        if(s){
+          setState(JSON.parse(s));
+          const sp = localStorage.getItem('mapleak.spark');
+          if(sp) APP.sparkHistory = JSON.parse(sp);
+          makeSpark(els.spark, APP.sparkHistory);
+          return true;
+        }
+      }catch(e){ /* ignore */ }
+      return false;
+    }
+
+    function encodeState(state){
+      const json = JSON.stringify(state);
+      // base64url
+      return btoa(unescape(encodeURIComponent(json)))
+        .replaceAll('+','-')
+        .replaceAll('/','_')
+        .replaceAll('=','');
+    }
+
+    function decodeState(s){
+      try{
+        s = s.replaceAll('-','+').replaceAll('_','/');
+        while(s.length % 4) s += '=';
+        const json = decodeURIComponent(escape(atob(s)));
+        return JSON.parse(json);
+      }catch(e){
+        return null;
+      }
+    }
+
+    function syncHashFromState(state){
+      const encoded = encodeState(state);
+      const newHash = `#s=${encoded}`;
+      if(location.hash !== newHash){
+        history.replaceState(null, '', newHash);
+      }
+    }
+
+    function parseHash(){
+      const m = location.hash.match(/s=([^&]+)/);
+      if(!m) return null;
+      return decodeState(m[1]);
+    }
+
+    async function copyToClipboard(text){
+      try{
+        await navigator.clipboard.writeText(text);
+        toast('Copied to clipboard');
+        return true;
+      }catch(e){
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try{ document.execCommand('copy'); toast('Copied to clipboard'); }
+        catch(err){ toast('Copy failed'); }
+        ta.remove();
+        return false;
+      }
+    }
+
+    function exportReport(){
+      const s = getState();
+      const report = {
+        app: { name: 'MapLeak Lab', version: APP.version },
+        trend: { title: "Claude Code's source code has been leaked via a map file in their NPM registry" },
+        state: s,
+        result: {
+          score: APP.lastScore,
+          sparkHistory: APP.sparkHistory,
+          mapPreview: APP.lastMap,
+          timeline: APP.lastTimeline,
+          patchPlan: APP.lastPatch,
+        },
+        exportedAt: nowIso(),
+      };
+      const blob = new Blob([JSON.stringify(report, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (s.pkgName || 'mapleak').replaceAll('/','-').replaceAll('@','');
+      a.download = `${safeName}-mapleak-report.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 8000);
+      toast('Report downloaded');
+    }
+
+    function openModal(title, html){
+      els.modalTitle.textContent = title;
+      els.modalBody.innerHTML = html;
+      els.modal.classList.add('show');
+    }
+
+    function closeModal(){
+      els.modal.classList.remove('show');
+    }
+
+    function helpHtml(){
+      return `
+        <div style="display:grid; grid-template-columns: 1.2fr .8fr; gap:14px">
+          <div>
+            <div class="mini">
+              <div style="font-weight:750; color:rgba(255,255,255,.9); margin-bottom:8px">What is this?</div>
+              MapLeak Lab is a browser-only simulator that helps teams estimate the risk of accidentally shipping JavaScript source maps (.map files), especially for AI developer tools and agent runtimes.
+              <div style="height:12px"></div>
+              <div style="font-weight:750; color:rgba(255,255,255,.9); margin-bottom:8px">Why source maps matter</div>
+              Source maps can reveal function names, repo paths, and sometimes full source code (via <span class="mono">sourcesContent</span>). This can speed up reverse engineering and help attackers build exploits or copycat packages.
+              <div style="height:12px"></div>
+              <div style="font-weight:750; color:rgba(255,255,255,.9); margin-bottom:8px">Keyboard shortcuts</div>
+              <ul class="mini" style="margin:8px 0 0 18px">
+                <li><span class="kbd">R</span> recompute</li>
+                <li><span class="kbd">S</span> copy share URL</li>
+                <li><span class="kbd">E</span> export report</li>
+              </ul>
+            </div>
+          </div>
+          <div>
+            <div class="panel">
+              <div class="panel-head"><h3>Quick start</h3></div>
+              <div class="panel-body">
+                <ol class="mini" style="margin:0 0 0 18px">
+                  <li>Pick a preset</li>
+                  <li>Set map exposure and detail</li>
+                  <li>Recompute risk</li>
+                  <li>Copy patch plan</li>
+                </ol>
+              </div>
+            </div>
+            <div style="height:10px"></div>
+            <div class="panel">
+              <div class="panel-head"><h3>Privacy</h3></div>
+              <div class="panel-body">
+                <div class="mini">Everything stays in your browser. Saved runs are stored in localStorage only.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function setPreset(which){
+      if(which==='safe'){
+        setState({
+          pkgName:'@acme/agent-cli',
+          version:'1.0.0',
+          distTag:'latest',
+          bundleType:'cli',
+          minifiedPct:85,
+          treeshakePct:75,
+          sourceMapMode:'upload',
+          mapDetail:'names-only',
+          secretsLikelihood:10,
+          internalDocs:'symbols',
+          guardrails:{ noMapPublish:true, sourcemapUploadOnly:true, redactSourcesContent:true, secretsScan:true },
+          attacker:{ skill:'medium', goal:'recon', timeBudget:6, publicity:'normal' },
+          notes:'We upload maps to a private error tracker and block map publishing in CI.',
+          seed: 1001
+        });
+      }
+      if(which==='typical'){
+        setState({
+          pkgName:'@acme/agent-cli',
+          version:'1.2.3',
+          distTag:'latest',
+          bundleType:'vscode',
+          minifiedPct:70,
+          treeshakePct:55,
+          sourceMapMode:'hidden',
+          mapDetail:'paths',
+          secretsLikelihood:20,
+          internalDocs:'paths',
+          guardrails:{ noMapPublish:false, sourcemapUploadOnly:true, redactSourcesContent:false, secretsScan:true },
+          attacker:{ skill:'medium', goal:'prompt', timeBudget:8, publicity:'normal' },
+          notes:'Source maps exist for debugging; we hope they are not easily fetchable.',
+          seed: 1337
+        });
+      }
+      if(which==='spicy'){
+        setState({
+          pkgName:'@acme/claude-code',
+          version:'0.3.0',
+          distTag:'beta',
+          bundleType:'cli',
+          minifiedPct:35,
+          treeshakePct:20,
+          sourceMapMode:'public',
+          mapDetail:'sourcesContent',
+          secretsLikelihood:35,
+          internalDocs:'content',
+          guardrails:{ noMapPublish:false, sourcemapUploadOnly:false, redactSourcesContent:false, secretsScan:false },
+          attacker:{ skill:'high', goal:'supplychain', timeBudget:24, publicity:'viral' },
+          notes:'Maps accidentally shipped in the npm package due to a misconfigured publish step.',
+          seed: 20260331
+        });
+      }
+
+      persist();
+      recompute();
+      toast(`Preset loaded: ${which}`);
+    }
+
+    function savedRuns(){
+      try{
+        return JSON.parse(localStorage.getItem('mapleak.runs') || '[]');
+      }catch(e){ return []; }
+    }
+
+    function saveRuns(runs){
+      localStorage.setItem('mapleak.runs', JSON.stringify(runs.slice(0, 30)));
+    }
+
+    function renderRuns(){
+      const runs = savedRuns();
+      const tbody = $('#runsTable tbody');
+      tbody.innerHTML = '';
+      if(!runs.length){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="5" class="muted">No saved runs yet. Click "Save run".</td>`;
+        tbody.appendChild(tr);
+        return;
+      }
+
+      runs.forEach(r => {
+        const tr = document.createElement('tr');
+        const sev = severity(r.score);
+        tr.innerHTML = `
+          <td class="muted">${escapeHtml(new Date(r.when).toLocaleString())}</td>
+          <td><span class="mono">${escapeHtml(r.pkg)}</span></td>
+          <td><span class="badge ${sev.sev}">${Math.round(r.score)}</span></td>
+          <td><span class="badge ${sev.sev}">${sev.label}</span></td>
+          <td><button class="btn" data-open="${escapeHtml(r.hash)}">Open</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      $$('button[data-open]', tbody).forEach(b => {
+        b.addEventListener('click', () => {
+          location.hash = b.dataset.open;
+          const st = parseHash();
+          if(st){ setState(st); recompute(); }
+          setTab('explain');
+        });
+      });
+    }
+
+    function saveCurrentRun(){
+      const s = getState();
+      const hash = location.hash || `#s=${encodeState(s)}`;
+      const runs = savedRuns();
+      runs.unshift({ when: Date.now(), pkg: `${s.pkgName}@${s.version}`, score: APP.lastScore ?? 0, hash });
+      saveRuns(runs);
+      renderRuns();
+      toast('Saved run');
+    }
+
+    function clearRuns(){
+      localStorage.removeItem('mapleak.runs');
+      renderRuns();
+      toast('Cleared');
+    }
+
+    function checklistHtml(){
+      const s = getState();
+      const res = computeRisk(s);
+      const patch = buildPatch(s, res);
+      const rows = patch.split('\n')
+        .filter(l => l.startsWith('- ['))
+        .map(l => l.replace('- [ ]','- [ ]').replace('- [x]','- [x]'));
+
+      const items = rows.map((l,i)=>{
+        const ok = l.includes('[x]');
+        const text = l.replace(/- \[[ x]\] /,'');
+        return `<div class="toggle" style="margin-bottom:10px">
+          <input type="checkbox" disabled ${ok?'checked':''} />
+          <div>
+            <div class="t-title">${escapeHtml(text)}</div>
+            <div class="t-sub">${ok ? 'enabled in this scenario' : 'not enabled in this scenario'}</div>
+          </div>
+        </div>`;
+      }).join('');
+
+      return `
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px">
+          <div>
+            <div class="panel">
+              <div class="panel-head"><h3>Checklist</h3><span class="badge">${Math.round(res.score)}/100</span></div>
+              <div class="panel-body">
+                ${items || '<div class="mini">No checklist items found.</div>'}
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="panel">
+              <div class="panel-head"><h3>Paste-ready plan</h3></div>
+              <div class="panel-body">
+                <div class="codebox" style="max-height:360px">${escapeHtml(patch)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Event wiring
+    function bind(){
+      const recalcOnInput = [
+        els.pkgName, els.version, els.distTag, els.bundleType,
+        els.minifiedPct, els.treeshakePct, els.sourceMapMode, els.mapDetail,
+        els.secretsLikelihood, els.internalDocs,
+        els.gNoMapPublish, els.gSourcemapUploadOnly, els.gRedactSourcesContent, els.gSecretsScan,
+        els.attackerSkill, els.attackerGoal, els.timeBudget, els.publicity,
+        els.customNotes,
+      ];
+
+      recalcOnInput.forEach(el => {
+        el.addEventListener('input', () => {
+          syncRangeNumbers();
+          updateAttackerBadge();
+          persist();
+        });
+        el.addEventListener('change', () => {
+          syncRangeNumbers();
+          updateAttackerBadge();
+          persist();
+        });
+      });
+
+      els.btnRun.addEventListener('click', recompute);
+
+      els.btnShare.addEventListener('click', async () => {
+        persist();
+        const url = location.href;
+        await copyToClipboard(url);
+        toast('Share URL copied');
+      });
+
+      els.btnExport.addEventListener('click', exportReport);
+
+      els.btnHelp.addEventListener('click', () => {
+        openModal('Help', helpHtml());
+      });
+
+      els.btnCloseModal.addEventListener('click', closeModal);
+      els.modal.addEventListener('click', (e) => {
+        if(e.target === els.modal) closeModal();
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if(e.key === 'Escape') closeModal();
+        if(e.key.toLowerCase() === 'r') recompute();
+        if(e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          persist();
+          copyToClipboard(location.href);
+        }
+        if(e.key.toLowerCase() === 'e') exportReport();
+      });
+
+      $$('.tab', els.tabs).forEach(tab => {
+        tab.addEventListener('click', () => {
+          setTab(tab.dataset.tab);
+          if(tab.dataset.tab === 'leaderboard') renderRuns();
+        });
+      });
+
+      els.btnPresetSafe.addEventListener('click', ()=>setPreset('safe'));
+      els.btnPresetTypical.addEventListener('click', ()=>setPreset('typical'));
+      els.btnPresetSpicy.addEventListener('click', ()=>setPreset('spicy'));
+
+      els.btnGenMap.addEventListener('click', () => {
+        const s = getState();
+        APP.lastMap = buildFakeMap(s);
+        els.mapPreview.textContent = APP.lastMap;
+        toast('Regenerated');
+      });
+
+      els.btnCopyMap.addEventListener('click', () => copyToClipboard(els.mapPreview.textContent));
+      els.btnCopyPatch.addEventListener('click', () => copyToClipboard(els.patchPlan.textContent));
+
+      els.btnOpenChecklist.addEventListener('click', () => openModal('Checklist view', checklistHtml()));
+
+      els.btnSaveRun.addEventListener('click', saveCurrentRun);
+      els.btnClearRuns.addEventListener('click', clearRuns);
+
+      // subtle parallax highlight
+      document.addEventListener('mousemove', (e) => {
+        const rect = els.meter.getBoundingClientRect();
+        const x = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+        const y = clamp((e.clientY - rect.top) / rect.height, 0, 1);
+        els.meter.style.setProperty('--mx', `${Math.round(x*100)}%`);
+        els.meter.style.setProperty('--my', `${Math.round(y*100)}%`);
+      });
+    }
+
+    function init(){
+      els.chipTrend.textContent = 'Trend: source map leak';
+      bind();
+      const loaded = loadPersisted();
+      if(!loaded) setPreset('typical');
+      updateAttackerBadge();
+      syncRangeNumbers();
+      if(APP.sparkHistory.length) makeSpark(els.spark, APP.sparkHistory);
+      // initial compute
+      setTimeout(recompute, 120);
+    }
+
+    init();
+  </script>
+</body>
+</html>
